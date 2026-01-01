@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: eBayDB-sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Cybersoft@321"
+      MSSQL_PID: "Developer"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backup
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-init:
+    image: python:3.11-slim
+    container_name: eBayDB-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./database/init-local-db.py:/init-local-db.py
+      - ./database/init-schema.sql:/init-schema.sql
+      - ./database/add-foreign-keys.sql:/add-foreign-keys.sql
+      - ./initial_backup.json:/initial_backup.json
+    command: >
+      bash -c "
+      pip install pymssql &&
+      python /init-local-db.py
+      "
+    restart: "no"
+
+volumes:
+  sqlserver-data:
